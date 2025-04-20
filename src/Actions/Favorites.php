@@ -114,7 +114,7 @@ class Favorites extends BaseWithDB {
         $sql = "SELECT id, file, created_at
                 FROM favorites
                 WHERE user_id = :user_id
-                ORDER BY created_at DESC";
+                ORDER BY file DESC";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
