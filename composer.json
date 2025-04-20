@@ -1,0 +1,14 @@
+{
+    "require": {
+        "bramus/router": "^1.6",
+        "vlucas/phpdotenv": "^5.6",
+        "doctrine/migrations": "^3.8",
+        "delight-im/auth": "^8.3",
+        "firebase/php-jwt": "^6.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "DRLib\\": "src/"
+        }
+    }
+}
