@@ -39,23 +39,31 @@ class Favorites extends BaseWithDB {
      * Adds a file to the current user's favorites.
      *
      * @param string $filePath The path or identifier of the file to favorite.
+     * @param string $thumbnail The thumbnail associated with the file (required).
      * @return int The ID of the newly created favorite record.
      * @throws Exception If the user is not logged in (code 401),
      *                   if the favorite already exists (code 409),
+     *                   if the thumbnail is null or empty (code 400),
      *                   or if a database error occurs (code 500).
      */
-    public function add(string $filePath): int {
-        // Get the user ID internally
+    public function add(string $filePath, string $thumbnail): int {
+        if (empty($filePath)) {
+            throw new Exception("File path cannot be null or empty.", 400); // 400 Bad Request
+        }
+        if (empty($thumbnail)) {
+            throw new Exception("Thumbnail cannot be null or empty.", 400); // 400 Bad Request
+        }
+
         $userId = $this->getCurrentUserID();
 
-        $sql = "INSERT INTO favorites (user_id, file) VALUES (:user_id, :file)";
+        $sql = "INSERT INTO favorites (user_id, file, thumbnail) VALUES (:user_id, :file, :thumbnail)";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
 
-            // Use the internally retrieved userId
             $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
             $stmt->bindValue(':file', $filePath, PDO::PARAM_STR);
+            $stmt->bindValue(':thumbnail', $thumbnail, PDO::PARAM_STR);
 
             $stmt->execute();
 
@@ -68,7 +76,6 @@ class Favorites extends BaseWithDB {
             if ($e->errorInfo[1] == 1062) {
                 throw new Exception("This file is already in favorites for this user.", 409, $e);
             } else {
-                // error_log("PDOException in Favorites::add: " . $e->getMessage());
                 throw new Exception("Could not add favorite.", 500, $e);
             }
         }
@@ -104,14 +111,14 @@ class Favorites extends BaseWithDB {
     /**
      * Lists all favorites for the current user.
      *
-     * @return array An array of favorite records (each an associative array with 'id', 'file', 'created_at').
+     * @return array An array of favorite records (each an associative array with 'id', 'file', 'thumbnail', 'created_at').
      *               Returns an empty array if the user has no favorites.
      * @throws Exception If the user is not logged in (code 401) or if a database error occurs (code 500).
      */
     public function list(): array {
         $userId = $this->getCurrentUserID();
 
-        $sql = "SELECT id, file, created_at
+        $sql = "SELECT id, file, thumbnail, created_at
                 FROM favorites
                 WHERE user_id = :user_id
                 ORDER BY file DESC";
@@ -125,7 +132,6 @@ class Favorites extends BaseWithDB {
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            // error_log("PDOException in Favorites::list: " . $e->getMessage());
             throw new Exception("Could not retrieve favorites.", 500, $e);
         }
     }
@@ -154,7 +160,6 @@ class Favorites extends BaseWithDB {
 
             return $count > 0;
         } catch (PDOException $e) {
-            // error_log("PDOException in Favorites::isFavorite: " . $e->getMessage());
             throw new Exception("Could not check favorite status.", 500, $e);
         }
     }

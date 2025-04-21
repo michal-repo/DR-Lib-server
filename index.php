@@ -239,10 +239,10 @@ $router->mount('/favorites', function () use ($router) {
     $router->post('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400)); }
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400)); }
         try {
             $favorites = new Favorites();
-            $newId = $favorites->add($input['file']);
+            $newId = $favorites->add($input['file'], $input['thumbnail']);
             http_response_code(201);
             echo json_encode(['status' => ['code' => 201, 'message' => 'created'], "data" => ['id' => $newId]]);
         } catch (\Throwable $th) { handleErr($th); } // Catches 401, 409, 500
