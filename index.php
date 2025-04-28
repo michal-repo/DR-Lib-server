@@ -11,6 +11,7 @@ require_once 'vendor/autoload.php';
 use DRLib\Auth\APIAuth;
 use DRLib\Actions\Favorites;
 use DRLib\Actions\Files;
+use DRLib\Actions\Catalogs;
 use \Bramus\Router\Router as BRouter;
 use Dotenv\Dotenv as Dotenv;
 
@@ -79,6 +80,7 @@ function handleErr(\Throwable $th) {
                 $th->getTraceAsString()
             );
             // Ensure logs directory exists and is writable
+            @mkdir('logs', 0775, true);
             @file_put_contents('logs/errors.log', $logEntry . PHP_EOL, FILE_APPEND | LOCK_EX);
         }
         echo json_encode(['status' => ['code' => $httpStatusCode, 'message' => $jsonMessage]]); // Use the generic message for production
@@ -203,10 +205,48 @@ $router->post('/log-out', function () { handleLogOut(); });
 // --- Helper Functions ---
 // (Keep the existing checkGetParam function as is)
 function checkGetParam(string $param, $default, int $filter = FILTER_DEFAULT, $options = null) {
-    $value = filter_input(INPUT_GET, $param, $filter, $options);
-    if ($value === null || $value === false) {
-        return $default;
+    // Ensure default filter is used if none specified that makes sense for general use
+    if ($filter !== FILTER_VALIDATE_INT && $filter !== FILTER_VALIDATE_FLOAT && $filter !== FILTER_VALIDATE_BOOLEAN && $filter !== FILTER_VALIDATE_EMAIL && $filter !== FILTER_VALIDATE_URL) {
+        $filter = FILTER_DEFAULT; // Sanitize string by default
     }
+
+    // For FILTER_DEFAULT, add STRIP_LOW and STRIP_HIGH flags to prevent potential XSS or control character issues
+    if ($filter === FILTER_DEFAULT && $options === null) {
+         $options = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+    } elseif ($filter === FILTER_DEFAULT && is_array($options) && !isset($options['flags'])) {
+         $options['flags'] = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+    } elseif ($filter === FILTER_DEFAULT && is_int($options)) { // If options is just flags
+         $options |= FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+    }
+
+
+    $value = filter_input(INPUT_GET, $param, $filter, $options);
+
+    // Check if filter_input failed or returned null
+    // For boolean, false is a valid value, so we check specifically for null/false failure
+    if ($filter === FILTER_VALIDATE_BOOLEAN) {
+        if ($value === null) { // Parameter not present or invalid boolean string
+             // Check if parameter exists but is invalid, return default. If not present, also return default.
+             if (filter_has_var(INPUT_GET, $param)) {
+                 // Parameter exists but wasn't a valid boolean representation
+                 return $default;
+             }
+             return $default; // Parameter not present
+        }
+        // filter_input returns true for "1", "true", "on", "yes". Returns false for "0", "false", "off", "no", "". Null otherwise.
+        return (bool) $value;
+    } elseif ($value === null || $value === false) {
+         // For other filters, null or false indicates failure or parameter not set
+         // Check if the parameter was actually present but failed validation
+         if (filter_has_var(INPUT_GET, $param) && $value === false) {
+             // Parameter was present but invalid according to the filter
+             return $default; // Return default if validation failed
+         }
+         // Parameter was not present or filter returned null for other reasons
+         return $default;
+    }
+
+    // Return the filtered value
     return $value;
 }
 
@@ -221,7 +261,12 @@ function ensureAuthenticated(): void {
             throw new \Exception('Unauthorized', 401);
         }
     } catch (\Throwable $th) {
-        handleErr($th);
+        // Re-throw with appropriate code if needed, or let handleErr manage it
+        if ($th->getCode() !== 401) { // If the auth check itself failed unexpectedly
+             handleErr(new \Exception('Authentication check failed.', 500, $th));
+        } else {
+             handleErr($th); // Pass the original 401 exception
+        }
     }
 }
 
@@ -288,21 +333,18 @@ $router->mount('/favorites', function () use ($router) {
 }); // End of /favorites mount
 
 
-// --- NEW Route for Listing Reference Files with Pagination ---
+// --- Route for Listing Reference Files with Pagination ---
 $router->options('/reference-files', function() { handleOptionsRequest('GET'); });
 $router->get('/reference-files', function () {
     header('Content-Type: application/json; charset=utf-8');
 
     try {
         // Get pagination parameters from the query string using the helper
-        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT);
-        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT);
+        // Defaulting to 1 and 20 respectively
+        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         // Get the directory filter parameter (named 'catalog' in the URL)
         $catalog = checkGetParam('catalog', null); // Default filter is fine for strings, default is null
-
-        // Ensure page and size are positive
-        if ($page === false || $page < 1) $page = 1;
-        if ($size === false || $size < 1) $size = 20;
 
         // Instantiate the Files class
         $filesHandler = new Files();
@@ -312,6 +354,34 @@ $router->get('/reference-files', function () {
 
         // Output the data as JSON
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $fileData]);
+
+    } catch (\Throwable $th) {
+        // Catch any exceptions
+        handleErr($th); // Use the existing error handler
+    }
+});
+
+// --- NEW Route for Listing Catalogs with Pagination ---
+$router->options('/catalogs', function() { handleOptionsRequest('GET'); });
+$router->get('/catalogs', function () {
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        // Get pagination parameters from the query string using the helper
+        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $thumbLimit = checkGetParam('thumbnails', 3, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        // --- Get the optional search query parameter ---
+        $searchQuery = checkGetParam('search', null); // Default filter is fine, default is null
+
+        // Instantiate the Catalog class
+        $catalogHandler = new Catalogs();
+
+        // Call the listing method, passing the search query
+        $catalogData = $catalogHandler->listCatalogsPaginated($page, $size, $thumbLimit, $searchQuery); // Pass $searchQuery here
+
+        // Output the data as JSON
+        echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $catalogData]);
 
     } catch (\Throwable $th) {
         // Catch any exceptions
