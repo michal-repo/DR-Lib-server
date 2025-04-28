@@ -10,7 +10,7 @@ require_once 'vendor/autoload.php';
 
 use DRLib\Auth\APIAuth;
 use DRLib\Actions\Favorites;
-use DRLib\Actions\Files; // <--- Add this line to include the new class
+use DRLib\Actions\Files;
 use \Bramus\Router\Router as BRouter;
 use Dotenv\Dotenv as Dotenv;
 
@@ -204,8 +204,6 @@ $router->post('/log-out', function () { handleLogOut(); });
 // (Keep the existing checkGetParam function as is)
 function checkGetParam(string $param, $default, int $filter = FILTER_DEFAULT, $options = null) {
     $value = filter_input(INPUT_GET, $param, $filter, $options);
-    // filter_input returns null if param is not set, or false on failure.
-    // We want to return the default if it's not set or if filtering failed.
     if ($value === null || $value === false) {
         return $default;
     }
@@ -297,28 +295,26 @@ $router->get('/reference-files', function () {
 
     try {
         // Get pagination parameters from the query string using the helper
-        // Default page is 1, default size is 20
         $page = checkGetParam('page', 1, FILTER_VALIDATE_INT);
         $size = checkGetParam('size', 20, FILTER_VALIDATE_INT);
+        // Get the directory filter parameter (named 'catalog' in the URL)
+        $catalog = checkGetParam('catalog', null); // Default filter is fine for strings, default is null
 
-        // Ensure page and size are positive (handled in the class method as well, but good practice here too)
-        // checkGetParam with FILTER_VALIDATE_INT returns false for non-integers,
-        // so we need to handle that case and ensure they are positive.
+        // Ensure page and size are positive
         if ($page === false || $page < 1) $page = 1;
         if ($size === false || $size < 1) $size = 20;
 
-
-        // Instantiate the Files class (it gets DB connection via BaseWithDB)
+        // Instantiate the Files class
         $filesHandler = new Files();
 
-        // Call the listing method with pagination parameters
-        $fileData = $filesHandler->listReferenceFilesPaginated($page, $size);
+        // Call the listing method, passing the catalog filter
+        $fileData = $filesHandler->listReferenceFilesPaginated($page, $size, $catalog); // Pass $catalog here
 
         // Output the data as JSON
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $fileData]);
 
     } catch (\Throwable $th) {
-        // Catch any exceptions (including the ones thrown by the Files class)
+        // Catch any exceptions
         handleErr($th); // Use the existing error handler
     }
 });
