@@ -10,6 +10,7 @@ require_once 'vendor/autoload.php';
 
 use DRLib\Auth\APIAuth;
 use DRLib\Actions\Favorites;
+use DRLib\Actions\Files; // <--- Add this line to include the new class
 use \Bramus\Router\Router as BRouter;
 use Dotenv\Dotenv as Dotenv;
 
@@ -20,8 +21,9 @@ $dotenv->safeLoad();
 $router = new BRouter();
 
 // --- Enhanced Error Handler ---
+// (Keep the existing handleErr function as is)
 function handleErr(\Throwable $th) {
-    // Ensure JSON header is set for error responses
+    // ... (your existing handleErr function code) ...
     header('Content-Type: application/json; charset=utf-8');
     $code = $th->getCode();
     $message = $th->getMessage();
@@ -35,14 +37,27 @@ function handleErr(\Throwable $th) {
         case 409: $httpStatusCode = 409; $jsonMessage = $message ?: 'Conflict'; break;
         case 503: $httpStatusCode = 503; $jsonMessage = $message ?: 'Service Unavailable'; break;
         case 429: $httpStatusCode = 429; $jsonMessage = $message ?: 'Too Many Requests'; break;
+        // Add case for 500 if you want a specific message for generic 500s thrown by your code
+        case 500: $httpStatusCode = 500; $jsonMessage = $message ?: 'Internal Server Error'; break;
+        default:
+             // If the code is not one of the specific ones, treat it as a generic 500
+             if ($code < 100 || $code >= 600) { // Basic check for valid HTTP status code range
+                 $httpStatusCode = 500;
+                 $jsonMessage = 'Internal Server Error';
+             } else {
+                 $httpStatusCode = $code;
+                 $jsonMessage = $message ?: 'Server Error'; // Use the message if it's a valid HTTP code
+             }
+             break;
     }
+
 
     http_response_code($httpStatusCode);
 
     if (isset($_ENV['debug']) && $_ENV['debug'] === "true") {
         // Detailed error in debug mode
         echo json_encode([
-            'status' => ['code' => $httpStatusCode, 'message' => $message],
+            'status' => ['code' => $httpStatusCode, 'message' => $message], // Use the original message for debug
             'error_details' => [
                 'message' => $th->getMessage(),
                 'code' => $th->getCode(),
@@ -66,16 +81,17 @@ function handleErr(\Throwable $th) {
             // Ensure logs directory exists and is writable
             @file_put_contents('logs/errors.log', $logEntry . PHP_EOL, FILE_APPEND | LOCK_EX);
         }
-        echo json_encode(['status' => ['code' => $httpStatusCode, 'message' => $jsonMessage]]);
+        echo json_encode(['status' => ['code' => $httpStatusCode, 'message' => $jsonMessage]]); // Use the generic message for production
     }
     die();
 }
 
+
 // --- CORS OPTIONS Request Handler ---
+// (Keep the existing handleOptionsRequest function as is)
 function handleOptionsRequest(string $allowedMethods) {
-    // Read CORS settings from environment or use defaults
+    // ... (your existing handleOptionsRequest function code) ...
     $allowedOrigin = $_ENV['CORS_ALLOWED_ORIGIN'] ?? '*';
-    // Ensure Authorization is allowed for JWT
     $allowedHeaders = $_ENV['CORS_ALLOWED_HEADERS'] ?? 'Content-Type, Authorization, X-Requested-With';
     $maxAge = $_ENV['CORS_MAX_AGE'] ?? '86400';
 
@@ -83,8 +99,6 @@ function handleOptionsRequest(string $allowedMethods) {
     header("Access-Control-Allow-Methods: {$allowedMethods}, OPTIONS");
     header("Access-Control-Allow-Headers: {$allowedHeaders}");
     header("Access-Control-Max-Age: {$maxAge}");
-    // If your frontend needs to send cookies (though less common with JWT), uncomment:
-    // header("Access-Control-Allow-Credentials: true");
 
     http_response_code(204);
     die();
@@ -118,11 +132,9 @@ $router->options('/register', function() { handleOptionsRequest('GET, POST'); })
 $router->get('/register', function () {
     header('Content-Type: application/json; charset=utf-8');
     try {
-        // Assuming isRegisterEnabled and register methods are uncommented/available in APIAuth
         $api = new APIAuth();
-        // Need to check if the method exists if it was commented out
         if (!method_exists($api, 'isRegisterEnabled')) {
-             handleErr(new \Exception("Registration check feature not available.", 501)); // 501 Not Implemented
+             handleErr(new \Exception("Registration check feature not available.", 501));
         }
         if ($api->isRegisterEnabled()) {
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => "Available"]);
@@ -141,9 +153,8 @@ $router->post('/register', function () {
 
     try {
         $api = new APIAuth();
-        // Need to check if the method exists if it was commented out
         if (!method_exists($api, 'register')) {
-             handleErr(new \Exception("Registration feature not available.", 501)); // 501 Not Implemented
+             handleErr(new \Exception("Registration feature not available.", 501));
         }
         $result = $api->register($j["email"], $j["password"], $j["username"]);
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $result]);
@@ -158,20 +169,18 @@ $router->post('/log-in', function () {
     header('Content-Type: application/json; charset=utf-8');
     $j = json_decode(file_get_contents("php://input"), true);
     if (json_last_error() !== JSON_ERROR_NONE || is_null($j)) { handleErr(new \InvalidArgumentException("Invalid JSON provided.", 400)); }
-    if (empty($j["email"]) || empty($j["password"])) { handleErr(new \InvalidArgumentException("Missing required fields: email, password.", 400)); }
+    if (empty($j["email"]) || empty($j["password"])) { handleErr(new \InvalidArgumentArgumentException("Missing required fields: email, password.", 400)); }
 
     try {
         $api = new APIAuth();
-        // log_in now returns the JWT string on success
         $jwtToken = $api->log_in($j["email"], $j["password"]);
 
-        // Return the token in the response data
         echo json_encode([
             'status' => ['code' => 200, 'message' => 'ok'],
-            'data' => ['token' => $jwtToken] // Send token back to client
+            'data' => ['token' => $jwtToken]
         ]);
     } catch (\Throwable $th) {
-        handleErr($th); // Handles 401, 429, 500 etc.
+        handleErr($th);
     }
 });
 
@@ -180,11 +189,9 @@ function handleLogOut() {
     header('Content-Type: application/json; charset=utf-8');
     try {
         $api = new APIAuth();
-        // logOut now reads token from header internally
         $api->logOut();
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => "Logged out"]);
     } catch (\Throwable $th) {
-        // Catch 400 if no token provided, or 500 for DB errors
         handleErr($th);
     }
 }
@@ -194,33 +201,36 @@ $router->post('/log-out', function () { handleLogOut(); });
 
 
 // --- Helper Functions ---
+// (Keep the existing checkGetParam function as is)
 function checkGetParam(string $param, $default, int $filter = FILTER_DEFAULT, $options = null) {
     $value = filter_input(INPUT_GET, $param, $filter, $options);
-    return $value ?? $default;
+    // filter_input returns null if param is not set, or false on failure.
+    // We want to return the default if it's not set or if filtering failed.
+    if ($value === null || $value === false) {
+        return $default;
+    }
+    return $value;
 }
+
 
 /**
  * Checks if the user is authenticated via JWT. Throws 401 Exception if not.
  */
 function ensureAuthenticated(): void {
-    // No need to set header here, called before route handler potentially outputs
     try {
         $api = new APIAuth();
         if (!$api->isLoggedIn()) {
-            // Throw exception for handleErr to catch
             throw new \Exception('Unauthorized', 401);
         }
-        // If logged in, do nothing, let the route handler continue
     } catch (\Throwable $th) {
-        // Catch exceptions from APIAuth constructor or isLoggedIn/throw
-        handleErr($th); // handleErr sets headers and dies
+        handleErr($th);
     }
 }
 
 
 // --- Favorites Routes (Protected by JWT check inside Favorites class) ---
 $router->mount('/favorites', function () use ($router) {
-
+    // ... (your existing /favorites routes) ...
     // OPTIONS /favorites
     $router->options('/', function() { handleOptionsRequest('GET, POST, DELETE'); });
 
@@ -228,24 +238,23 @@ $router->mount('/favorites', function () use ($router) {
     $router->get('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         try {
-            // Favorites methods now internally call APIAuth->getUserId() which validates JWT
             $favorites = new Favorites();
             $data = $favorites->list();
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $data]);
-        } catch (\Throwable $th) { handleErr($th); } // Catches 401 from getCurrentUserID if JWT invalid
+        } catch (\Throwable $th) { handleErr($th); }
     });
 
     // POST /favorites
     $router->post('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400)); }
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' or 'thumbnail' parameter in JSON body.", 400)); }
         try {
             $favorites = new Favorites();
             $newId = $favorites->add($input['file'], $input['thumbnail']);
             http_response_code(201);
             echo json_encode(['status' => ['code' => 201, 'message' => 'created'], "data" => ['id' => $newId]]);
-        } catch (\Throwable $th) { handleErr($th); } // Catches 401, 409, 500
+        } catch (\Throwable $th) { handleErr($th); }
     });
 
     // DELETE /favorites
@@ -261,7 +270,7 @@ $router->mount('/favorites', function () use ($router) {
             } else {
                 handleErr(new \Exception("Favorite not found for this user.", 404));
             }
-        } catch (\Throwable $th) { handleErr($th); } // Catches 401, 404, 500
+        } catch (\Throwable $th) { handleErr($th); }
     });
 
     // OPTIONS /favorites/check
@@ -276,9 +285,43 @@ $router->mount('/favorites', function () use ($router) {
             $favorites = new Favorites();
             $isFav = $favorites->isFavorite($file);
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => ['isFavorite' => $isFav]]);
-        } catch (\Throwable $th) { handleErr($th); } // Catches 401, 500
+        } catch (\Throwable $th) { handleErr($th); }
     });
 }); // End of /favorites mount
+
+
+// --- NEW Route for Listing Reference Files with Pagination ---
+$router->options('/reference-files', function() { handleOptionsRequest('GET'); });
+$router->get('/reference-files', function () {
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        // Get pagination parameters from the query string using the helper
+        // Default page is 1, default size is 20
+        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT);
+        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT);
+
+        // Ensure page and size are positive (handled in the class method as well, but good practice here too)
+        // checkGetParam with FILTER_VALIDATE_INT returns false for non-integers,
+        // so we need to handle that case and ensure they are positive.
+        if ($page === false || $page < 1) $page = 1;
+        if ($size === false || $size < 1) $size = 20;
+
+
+        // Instantiate the Files class (it gets DB connection via BaseWithDB)
+        $filesHandler = new Files();
+
+        // Call the listing method with pagination parameters
+        $fileData = $filesHandler->listReferenceFilesPaginated($page, $size);
+
+        // Output the data as JSON
+        echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $fileData]);
+
+    } catch (\Throwable $th) {
+        // Catch any exceptions (including the ones thrown by the Files class)
+        handleErr($th); // Use the existing error handler
+    }
+});
 
 
 // --- Run the router ---
