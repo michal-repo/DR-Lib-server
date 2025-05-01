@@ -21,7 +21,11 @@
   idx = {
     # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
     extensions = [
-      "rangav.vscode-thunder-client"
+      "EchoAPI.echoapi-for-vscode"
+      "cweijan.vscode-database-client2"
+      "cweijan.dbclient-jdbc"
+      "bmewburn.vscode-intelephense-client"
+      "esbenp.prettier-vscode"
     ];
 
 
@@ -50,7 +54,7 @@
       };
       # Runs when a workspace is (re)started
       onStart = {
-        run-server = "php -S localhost:3000 index.php";
+        run-server = "php -S localhost:3000";
       };
     };
 

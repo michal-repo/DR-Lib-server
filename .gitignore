@@ -21,7 +21,7 @@ cache/
 tmp/
 temp/
 # Doctrine Migrations cache/temp files (if applicable, adjust path if needed)
-migrations-db.php
+# migrations-db.php
 
 # --- IDE/Editor Files ---
 # PhpStorm, WebStorm, IntelliJ
