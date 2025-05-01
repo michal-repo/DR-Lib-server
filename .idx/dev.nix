@@ -6,10 +6,15 @@
 
   # Use https://search.nixos.org/packages to find packages
   packages = [
-    pkgs.mariadb
     pkgs.php82
     pkgs.php82Packages.composer
   ];
+
+  services.mysql = {
+    enable = true;
+    package = pkgs.mariadb;
+  };
+
 
   # Sets environment variables in the workspace
   env = { };
