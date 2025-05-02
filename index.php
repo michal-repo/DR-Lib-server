@@ -2,10 +2,6 @@
 
 namespace Router;
 
-// Session cookie path setting is no longer relevant for JWT auth state
-// $cookiePath = empty($_ENV['domain_path']) ? '/' : $_ENV['domain_path'];
-// \ini_set('session.cookie_path', $cookiePath);
-
 require_once 'vendor/autoload.php';
 
 use DRLib\Auth\APIAuth;
