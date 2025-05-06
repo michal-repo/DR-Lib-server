@@ -32,24 +32,45 @@ function handleErr(\Throwable $th) {
     $jsonMessage = 'Internal Server Error';
 
     switch ($code) {
-        case 400: $httpStatusCode = 400; $jsonMessage = $message ?: 'Bad Request'; break;
-        case 401: $httpStatusCode = 401; $jsonMessage = $message ?: 'Unauthorized'; break; // Used for invalid/missing JWT
-        case 404: $httpStatusCode = 404; $jsonMessage = $message ?: 'Not Found'; break;
-        case 409: $httpStatusCode = 409; $jsonMessage = $message ?: 'Conflict'; break;
-        case 503: $httpStatusCode = 503; $jsonMessage = $message ?: 'Service Unavailable'; break;
-        case 429: $httpStatusCode = 429; $jsonMessage = $message ?: 'Too Many Requests'; break;
+        case 400:
+            $httpStatusCode = 400;
+            $jsonMessage = $message ?: 'Bad Request';
+            break;
+        case 401:
+            $httpStatusCode = 401;
+            $jsonMessage = $message ?: 'Unauthorized';
+            break; // Used for invalid/missing JWT
+        case 404:
+            $httpStatusCode = 404;
+            $jsonMessage = $message ?: 'Not Found';
+            break;
+        case 409:
+            $httpStatusCode = 409;
+            $jsonMessage = $message ?: 'Conflict';
+            break;
+        case 503:
+            $httpStatusCode = 503;
+            $jsonMessage = $message ?: 'Service Unavailable';
+            break;
+        case 429:
+            $httpStatusCode = 429;
+            $jsonMessage = $message ?: 'Too Many Requests';
+            break;
         // Add case for 500 if you want a specific message for generic 500s thrown by your code
-        case 500: $httpStatusCode = 500; $jsonMessage = $message ?: 'Internal Server Error'; break;
+        case 500:
+            $httpStatusCode = 500;
+            $jsonMessage = $message ?: 'Internal Server Error';
+            break;
         default:
-             // If the code is not one of the specific ones, treat it as a generic 500
-             if ($code < 100 || $code >= 600) { // Basic check for valid HTTP status code range
-                 $httpStatusCode = 500;
-                 $jsonMessage = 'Internal Server Error';
-             } else {
-                 $httpStatusCode = $code;
-                 $jsonMessage = $message ?: 'Server Error'; // Use the message if it's a valid HTTP code
-             }
-             break;
+            // If the code is not one of the specific ones, treat it as a generic 500
+            if ($code < 100 || $code >= 600) { // Basic check for valid HTTP status code range
+                $httpStatusCode = 500;
+                $jsonMessage = 'Internal Server Error';
+            } else {
+                $httpStatusCode = $code;
+                $jsonMessage = $message ?: 'Server Error'; // Use the message if it's a valid HTTP code
+            }
+            break;
     }
 
 
@@ -113,14 +134,18 @@ $router->set404('/api(/.*)?', function () {
 });
 
 // --- Root ---
-$router->options('/', function() { handleOptionsRequest('GET'); });
+$router->options('/', function () {
+    handleOptionsRequest('GET');
+});
 $router->get('/', function () {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => 'API Root']);
 });
 
 // --- Auth Check (Checks JWT Validity) ---
-$router->options('/check', function() { handleOptionsRequest('GET'); });
+$router->options('/check', function () {
+    handleOptionsRequest('GET');
+});
 $router->get('/check', function () {
     header('Content-Type: application/json; charset=utf-8');
     // Use the helper function which now checks JWT validity
@@ -130,13 +155,15 @@ $router->get('/check', function () {
 });
 
 // --- Registration (Unaffected by JWT login state) ---
-$router->options('/register', function() { handleOptionsRequest('GET, POST'); });
+$router->options('/register', function () {
+    handleOptionsRequest('GET, POST');
+});
 $router->get('/register', function () {
     header('Content-Type: application/json; charset=utf-8');
     try {
         $api = new APIAuth();
         if (!method_exists($api, 'isRegisterEnabled')) {
-             handleErr(new \Exception("Registration check feature not available.", 501));
+            handleErr(new \Exception("Registration check feature not available.", 501));
         }
         if ($api->isRegisterEnabled()) {
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => "Available"]);
@@ -150,13 +177,17 @@ $router->get('/register', function () {
 $router->post('/register', function () {
     header('Content-Type: application/json; charset=utf-8');
     $j = json_decode(file_get_contents("php://input"), true);
-    if (json_last_error() !== JSON_ERROR_NONE || is_null($j)) { handleErr(new \InvalidArgumentException("Invalid JSON provided.", 400)); }
-    if (empty($j["email"]) || empty($j["password"]) || empty($j["username"])) { handleErr(new \InvalidArgumentException("Missing required fields: email, password, username.", 400)); }
+    if (json_last_error() !== JSON_ERROR_NONE || is_null($j)) {
+        handleErr(new \InvalidArgumentException("Invalid JSON provided.", 400));
+    }
+    if (empty($j["email"]) || empty($j["password"]) || empty($j["username"])) {
+        handleErr(new \InvalidArgumentException("Missing required fields: email, password, username.", 400));
+    }
 
     try {
         $api = new APIAuth();
         if (!method_exists($api, 'register')) {
-             handleErr(new \Exception("Registration feature not available.", 501));
+            handleErr(new \Exception("Registration feature not available.", 501));
         }
         $result = $api->register($j["email"], $j["password"], $j["username"]);
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $result]);
@@ -166,12 +197,18 @@ $router->post('/register', function () {
 });
 
 // --- Login (Returns JWT) ---
-$router->options('/log-in', function() { handleOptionsRequest('POST'); });
+$router->options('/log-in', function () {
+    handleOptionsRequest('POST');
+});
 $router->post('/log-in', function () {
     header('Content-Type: application/json; charset=utf-8');
     $j = json_decode(file_get_contents("php://input"), true);
-    if (json_last_error() !== JSON_ERROR_NONE || is_null($j)) { handleErr(new \InvalidArgumentException("Invalid JSON provided.", 400)); }
-    if (empty($j["email"]) || empty($j["password"])) { handleErr(new \InvalidArgumentArgumentException("Missing required fields: email, password.", 400)); }
+    if (json_last_error() !== JSON_ERROR_NONE || is_null($j)) {
+        handleErr(new \InvalidArgumentException("Invalid JSON provided.", 400));
+    }
+    if (empty($j["email"]) || empty($j["password"])) {
+        handleErr(new \InvalidArgumentException("Missing required fields: email, password.", 400));
+    }
 
     try {
         $api = new APIAuth();
@@ -197,9 +234,15 @@ function handleLogOut() {
         handleErr($th);
     }
 }
-$router->options('/log-out', function() { handleOptionsRequest('GET, POST'); });
-$router->get('/log-out', function () { handleLogOut(); });
-$router->post('/log-out', function () { handleLogOut(); });
+$router->options('/log-out', function () {
+    handleOptionsRequest('GET, POST');
+});
+$router->get('/log-out', function () {
+    handleLogOut();
+});
+$router->post('/log-out', function () {
+    handleLogOut();
+});
 
 
 // --- Helper Functions ---
@@ -212,11 +255,11 @@ function checkGetParam(string $param, $default, int $filter = FILTER_DEFAULT, $o
 
     // For FILTER_DEFAULT, add STRIP_LOW and STRIP_HIGH flags to prevent potential XSS or control character issues
     if ($filter === FILTER_DEFAULT && $options === null) {
-         $options = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+        $options = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
     } elseif ($filter === FILTER_DEFAULT && is_array($options) && !isset($options['flags'])) {
-         $options['flags'] = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+        $options['flags'] = FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
     } elseif ($filter === FILTER_DEFAULT && is_int($options)) { // If options is just flags
-         $options |= FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
+        $options |= FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH;
     }
 
 
@@ -226,24 +269,24 @@ function checkGetParam(string $param, $default, int $filter = FILTER_DEFAULT, $o
     // For boolean, false is a valid value, so we check specifically for null/false failure
     if ($filter === FILTER_VALIDATE_BOOLEAN) {
         if ($value === null) { // Parameter not present or invalid boolean string
-             // Check if parameter exists but is invalid, return default. If not present, also return default.
-             if (filter_has_var(INPUT_GET, $param)) {
-                 // Parameter exists but wasn't a valid boolean representation
-                 return $default;
-             }
-             return $default; // Parameter not present
+            // Check if parameter exists but is invalid, return default. If not present, also return default.
+            if (filter_has_var(INPUT_GET, $param)) {
+                // Parameter exists but wasn't a valid boolean representation
+                return $default;
+            }
+            return $default; // Parameter not present
         }
         // filter_input returns true for "1", "true", "on", "yes". Returns false for "0", "false", "off", "no", "". Null otherwise.
         return (bool) $value;
     } elseif ($value === null || $value === false) {
-         // For other filters, null or false indicates failure or parameter not set
-         // Check if the parameter was actually present but failed validation
-         if (filter_has_var(INPUT_GET, $param) && $value === false) {
-             // Parameter was present but invalid according to the filter
-             return $default; // Return default if validation failed
-         }
-         // Parameter was not present or filter returned null for other reasons
-         return $default;
+        // For other filters, null or false indicates failure or parameter not set
+        // Check if the parameter was actually present but failed validation
+        if (filter_has_var(INPUT_GET, $param) && $value === false) {
+            // Parameter was present but invalid according to the filter
+            return $default; // Return default if validation failed
+        }
+        // Parameter was not present or filter returned null for other reasons
+        return $default;
     }
 
     // Return the filtered value
@@ -263,19 +306,62 @@ function ensureAuthenticated(): void {
     } catch (\Throwable $th) {
         // Re-throw with appropriate code if needed, or let handleErr manage it
         if ($th->getCode() !== 401) { // If the auth check itself failed unexpectedly
-             handleErr(new \Exception('Authentication check failed.', 500, $th));
+            handleErr(new \Exception('Authentication check failed.', 500, $th));
         } else {
-             handleErr($th); // Pass the original 401 exception
+            handleErr($th); // Pass the original 401 exception
         }
     }
 }
 
 
 // --- Favorites Routes (Protected by JWT check inside Favorites class) ---
+$router->options('/favorites-catalogs', function () {
+    handleOptionsRequest('GET');
+});
+$router->get('/favorites-catalogs', function () {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        // Get pagination and search parameters from the query string
+        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $thumbLimit = checkGetParam('thumbnails', 3, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        $searchQuery = checkGetParam('search', null);
+        $favorites = new Favorites();
+        $data = $favorites->listFavoriteCatalogs($page, $size, $thumbLimit, $searchQuery);
+        echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $data]);
+    } catch (\Throwable $th) {
+        handleErr($th);
+    }
+});
+
+$router->options('/favorites-by-catalog', function () {
+    handleOptionsRequest('GET');
+});
+$router->get('/favorites-by-catalog', function () {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        // Get pagination parameters from the query string using the helper
+        $page = checkGetParam('page', 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        // The $catalogDirectory is required by the backend method; Favorites class will throw 400 if empty.
+        $catalogDirectory = checkGetParam('directory', null); 
+        // Get the optional search query for files within the catalog
+        $searchQuery = checkGetParam('search', null); 
+
+        $favorites = new Favorites();
+        $data = $favorites->listFavoritesByCatalog($catalogDirectory, $page, $size, $searchQuery);
+        echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $data]);
+    } catch (\Throwable $th) {
+        handleErr($th);
+    }
+});
+
 $router->mount('/favorites', function () use ($router) {
     // ... (your existing /favorites routes) ...
     // OPTIONS /favorites
-    $router->options('/', function() { handleOptionsRequest('GET, POST, DELETE'); });
+    $router->options('/', function () {
+        handleOptionsRequest('GET, POST, DELETE');
+    });
 
     // GET /favorites
     $router->get('/', function () {
@@ -284,27 +370,35 @@ $router->mount('/favorites', function () use ($router) {
             $favorites = new Favorites();
             $data = $favorites->list();
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $data]);
-        } catch (\Throwable $th) { handleErr($th); }
+        } catch (\Throwable $th) {
+            handleErr($th);
+        }
     });
 
     // POST /favorites
     $router->post('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' or 'thumbnail' parameter in JSON body.", 400)); }
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'file' or 'thumbnail' parameter in JSON body.", 400));
+        }
         try {
             $favorites = new Favorites();
             $newId = $favorites->add($input['file'], $input['thumbnail']);
             http_response_code(201);
             echo json_encode(['status' => ['code' => 201, 'message' => 'created'], "data" => ['id' => $newId]]);
-        } catch (\Throwable $th) { handleErr($th); }
+        } catch (\Throwable $th) {
+            handleErr($th);
+        }
     });
 
     // DELETE /favorites
     $router->delete('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file'])) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400)); }
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file'])) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400));
+        }
         try {
             $favorites = new Favorites();
             $removed = $favorites->remove($input['file']);
@@ -313,28 +407,38 @@ $router->mount('/favorites', function () use ($router) {
             } else {
                 handleErr(new \Exception("Favorite not found for this user.", 404));
             }
-        } catch (\Throwable $th) { handleErr($th); }
+        } catch (\Throwable $th) {
+            handleErr($th);
+        }
     });
 
     // OPTIONS /favorites/check
-    $router->options('/check', function() { handleOptionsRequest('GET'); });
+    $router->options('/check', function () {
+        handleOptionsRequest('GET');
+    });
 
     // GET /favorites/check
     $router->get('/check', function () {
         header('Content-Type: application/json; charset=utf-8');
         $file = checkGetParam('file', null);
-        if (empty($file) || !is_string($file)) { handleErr(new \InvalidArgumentException("Missing or invalid 'file' query parameter.", 400)); }
+        if (empty($file) || !is_string($file)) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'file' query parameter.", 400));
+        }
         try {
             $favorites = new Favorites();
             $isFav = $favorites->isFavorite($file);
             echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => ['isFavorite' => $isFav]]);
-        } catch (\Throwable $th) { handleErr($th); }
+        } catch (\Throwable $th) {
+            handleErr($th);
+        }
     });
 }); // End of /favorites mount
 
 
 // --- Route for Listing Reference Files with Pagination ---
-$router->options('/reference-files', function() { handleOptionsRequest('GET'); });
+$router->options('/reference-files', function () {
+    handleOptionsRequest('GET');
+});
 $router->get('/reference-files', function () {
     header('Content-Type: application/json; charset=utf-8');
 
@@ -354,7 +458,6 @@ $router->get('/reference-files', function () {
 
         // Output the data as JSON
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $fileData]);
-
     } catch (\Throwable $th) {
         // Catch any exceptions
         handleErr($th); // Use the existing error handler
@@ -362,7 +465,9 @@ $router->get('/reference-files', function () {
 });
 
 // --- NEW Route for Listing Catalogs with Pagination ---
-$router->options('/catalogs', function() { handleOptionsRequest('GET'); });
+$router->options('/catalogs', function () {
+    handleOptionsRequest('GET');
+});
 $router->get('/catalogs', function () {
     header('Content-Type: application/json; charset=utf-8');
 
@@ -382,7 +487,6 @@ $router->get('/catalogs', function () {
 
         // Output the data as JSON
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $catalogData]);
-
     } catch (\Throwable $th) {
         // Catch any exceptions
         handleErr($th); // Use the existing error handler
