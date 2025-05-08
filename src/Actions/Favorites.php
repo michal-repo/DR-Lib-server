@@ -122,7 +122,7 @@ class Favorites extends BaseWithDB {
                 FROM favorites f
                 INNER JOIN reference_files rf ON f.reference_file_id = rf.id
                 WHERE f.user_id = :user_id
-                ORDER BY rf.name ASC";
+                ORDER BY rf.directory ASC, rf.id DESC";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
