@@ -38,32 +38,27 @@ class Favorites extends BaseWithDB {
     /**
      * Adds a file to the current user's favorites.
      *
-     * @param string $filePath The path or identifier of the file to favorite.
-     * @param string $thumbnail The thumbnail associated with the file (required).
+     * @param int $referenceFileId The ID of the reference file to favorite.
      * @return int The ID of the newly created favorite record.
      * @throws Exception If the user is not logged in (code 401),
+     *                   if the reference_file_id is invalid (code 400),
      *                   if the favorite already exists (code 409),
-     *                   if the thumbnail is null or empty (code 400),
      *                   or if a database error occurs (code 500).
      */
-    public function add(string $filePath, string $thumbnail): int {
-        if (empty($filePath)) {
-            throw new Exception("File path cannot be null or empty.", 400); // 400 Bad Request
-        }
-        if (empty($thumbnail)) {
-            throw new Exception("Thumbnail cannot be null or empty.", 400); // 400 Bad Request
+    public function add(int $referenceFileId): int {
+        if ($referenceFileId <= 0) {
+            throw new Exception("Reference file ID must be a positive integer.", 400); // 400 Bad Request
         }
 
         $userId = $this->getCurrentUserID();
 
-        $sql = "INSERT INTO favorites (user_id, file, thumbnail) VALUES (:user_id, :file, :thumbnail)";
+        $sql = "INSERT INTO favorites (user_id, reference_file_id) VALUES (:user_id, :reference_file_id)";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
 
             $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->bindValue(':file', $filePath, PDO::PARAM_STR);
-            $stmt->bindValue(':thumbnail', $thumbnail, PDO::PARAM_STR);
+            $stmt->bindValue(':reference_file_id', $referenceFileId, PDO::PARAM_INT);
 
             $stmt->execute();
 
@@ -84,20 +79,23 @@ class Favorites extends BaseWithDB {
     /**
      * Removes a file from the current user's favorites.
      *
-     * @param string $filePath The path or identifier of the file to remove.
+     * @param int $referenceFileId The ID of the reference file to remove from favorites.
      * @return bool True if the favorite was removed, false if it didn't exist for the user.
      * @throws Exception If the user is not logged in (code 401) or if a database error occurs (code 500).
      */
-    public function remove(string $filePath): bool {
+    public function remove(int $referenceFileId): bool {
+        if ($referenceFileId <= 0) {
+            throw new Exception("Reference file ID must be a positive integer.", 400); // 400 Bad Request
+        }
         $userId = $this->getCurrentUserID();
 
-        $sql = "DELETE FROM favorites WHERE user_id = :user_id AND file = :file";
+        $sql = "DELETE FROM favorites WHERE user_id = :user_id AND reference_file_id = :reference_file_id";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
 
             $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->bindValue(':file', $filePath, PDO::PARAM_STR);
+            $stmt->bindValue(':reference_file_id', $referenceFileId, PDO::PARAM_INT);
 
             $stmt->execute();
 
@@ -111,17 +109,20 @@ class Favorites extends BaseWithDB {
     /**
      * Lists all favorites for the current user.
      *
-     * @return array An array of favorite records (each an associative array with 'id', 'file', 'thumbnail', 'created_at').
+     * @return array An array of favorite records. Each record includes favorite details
+     *               and associated reference file details (src as 'file', 'thumbnail').
      *               Returns an empty array if the user has no favorites.
      * @throws Exception If the user is not logged in (code 401) or if a database error occurs (code 500).
      */
     public function list(): array {
         $userId = $this->getCurrentUserID();
 
-        $sql = "SELECT id, file, thumbnail, created_at
-                FROM favorites
-                WHERE user_id = :user_id
-                ORDER BY file ASC";
+        $sql = "SELECT f.id, f.created_at, f.reference_file_id,
+                       rf.src AS file, rf.thumbnail, rf.name AS file_name, rf.directory AS file_directory
+                FROM favorites f
+                INNER JOIN reference_files rf ON f.reference_file_id = rf.id
+                WHERE f.user_id = :user_id
+                ORDER BY rf.name ASC";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
@@ -139,20 +140,23 @@ class Favorites extends BaseWithDB {
     /**
      * Checks if a specific file is favorited by the current user.
      *
-     * @param string $filePath The path or identifier of the file to check.
+     * @param int $referenceFileId The ID of the reference file to check.
      * @return bool True if the file is favorited by the current user, false otherwise.
      * @throws Exception If the user is not logged in (code 401) or if a database error occurs (code 500).
      */
-    public function isFavorite(string $filePath): bool {
+    public function isFavorite(int $referenceFileId): bool {
+        if ($referenceFileId <= 0) {
+            throw new Exception("Reference file ID must be a positive integer.", 400); // 400 Bad Request
+        }
         $userId = $this->getCurrentUserID();
 
-        $sql = "SELECT COUNT(*) FROM favorites WHERE user_id = :user_id AND file = :file";
+        $sql = "SELECT COUNT(*) FROM favorites WHERE user_id = :user_id AND reference_file_id = :reference_file_id";
 
         try {
             $stmt = $this->db->dbh->prepare($sql);
 
             $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->bindValue(':file', $filePath, PDO::PARAM_STR);
+            $stmt->bindValue(':reference_file_id', $referenceFileId, PDO::PARAM_INT);
 
             $stmt->execute();
 
@@ -205,7 +209,7 @@ class Favorites extends BaseWithDB {
             // 1. Get the total count of distinct directories matching the criteria
             $countSql = "SELECT COUNT(DISTINCT rf.directory)
                          FROM favorites f
-                         INNER JOIN reference_files rf ON f.file = rf.src
+                         INNER JOIN reference_files rf ON f.reference_file_id = rf.id
                          WHERE f.user_id = :user_id" . $searchSqlPart;
 
             $countStmt = $this->db->dbh->prepare($countSql);
@@ -219,7 +223,7 @@ class Favorites extends BaseWithDB {
             // 2. Get the paginated list of distinct directories matching the criteria
             $dirSql = "SELECT DISTINCT rf.directory
                        FROM favorites f
-                       INNER JOIN reference_files rf ON f.file = rf.src
+                       INNER JOIN reference_files rf ON f.reference_file_id = rf.id
                        WHERE f.user_id = :user_id" . $searchSqlPart .
                        " ORDER BY rf.directory ASC
                        LIMIT :limit OFFSET :offset";
@@ -325,7 +329,7 @@ class Favorites extends BaseWithDB {
         }
         
         $whereSql = " WHERE " . implode(" AND ", $baseWhereClauses) . $searchSqlPart;
-        $fromSql = "FROM favorites f INNER JOIN reference_files rf ON f.file = rf.src";
+        $fromSql = "FROM favorites f INNER JOIN reference_files rf ON f.reference_file_id = rf.id";
 
         try {
             // 1. Get the total count of matching favorite files

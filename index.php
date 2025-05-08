@@ -379,14 +379,16 @@ $router->mount('/favorites', function () use ($router) {
     $router->post('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file']) || empty($input['thumbnail']) || !is_string($input['thumbnail'])) {
-            handleErr(new \InvalidArgumentException("Missing or invalid 'file' or 'thumbnail' parameter in JSON body.", 400));
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
+            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'reference_file_id' (must be a positive integer) in JSON body.", 400));
         }
         try {
             $favorites = new Favorites();
-            $newId = $favorites->add($input['file'], $input['thumbnail']);
+            $newId = $favorites->add($input['reference_file_id']);
             http_response_code(201);
-            echo json_encode(['status' => ['code' => 201, 'message' => 'created'], "data" => ['id' => $newId]]);
+            // Return the favorite ID and the reference_file_id for confirmation
+            echo json_encode(['status' => ['code' => 201, 'message' => 'created'], "data" => ['id' => $newId, 'reference_file_id' => $input['reference_file_id']]]);
         } catch (\Throwable $th) {
             handleErr($th);
         }
@@ -396,16 +398,17 @@ $router->mount('/favorites', function () use ($router) {
     $router->delete('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) || empty($input['file']) || !is_string($input['file'])) {
-            handleErr(new \InvalidArgumentException("Missing or invalid 'file' parameter in JSON body.", 400));
+        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
+            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'reference_file_id' (must be a positive integer) in JSON body.", 400));
         }
         try {
             $favorites = new Favorites();
-            $removed = $favorites->remove($input['file']);
+            $removed = $favorites->remove($input['reference_file_id']);
             if ($removed) {
                 echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => "Favorite removed."]);
             } else {
-                handleErr(new \Exception("Favorite not found for this user.", 404));
+                handleErr(new \Exception("Favorite not found for this user with the given reference_file_id.", 404));
             }
         } catch (\Throwable $th) {
             handleErr($th);
@@ -420,14 +423,14 @@ $router->mount('/favorites', function () use ($router) {
     // GET /favorites/check
     $router->get('/check', function () {
         header('Content-Type: application/json; charset=utf-8');
-        $file = checkGetParam('file', null);
-        if (empty($file) || !is_string($file)) {
-            handleErr(new \InvalidArgumentException("Missing or invalid 'file' query parameter.", 400));
+        $referenceFileId = checkGetParam('reference_file_id', 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($referenceFileId <= 0) {
+            handleErr(new \InvalidArgumentException("Missing or invalid 'reference_file_id' query parameter (must be a positive integer).", 400));
         }
         try {
             $favorites = new Favorites();
-            $isFav = $favorites->isFavorite($file);
-            echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => ['isFavorite' => $isFav]]);
+            $isFav = $favorites->isFavorite($referenceFileId);
+            echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => ['isFavorite' => $isFav, 'reference_file_id' => $referenceFileId]]);
         } catch (\Throwable $th) {
             handleErr($th);
         }
