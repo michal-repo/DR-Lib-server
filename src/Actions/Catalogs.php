@@ -100,6 +100,7 @@ class Catalogs extends BaseWithDB
                 $thumbSql = "SELECT thumbnail
                              FROM reference_files
                              WHERE directory = :directory
+                             AND corrupted = 0
                              ORDER BY id ASC -- Or ORDER BY name ASC
                              LIMIT :thumbnail_limit";
                 $thumbStmt = $this->db->dbh->prepare($thumbSql);

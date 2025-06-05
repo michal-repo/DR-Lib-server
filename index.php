@@ -344,9 +344,9 @@ $router->get('/favorites-by-catalog', function () {
         $page = checkGetParam('page', 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         // The $catalogDirectory is required by the backend method; Favorites class will throw 400 if empty.
-        $catalogDirectory = checkGetParam('directory', null); 
+        $catalogDirectory = checkGetParam('directory', null);
         // Get the optional search query for files within the catalog
-        $searchQuery = checkGetParam('search', null); 
+        $searchQuery = checkGetParam('search', null);
 
         $favorites = new Favorites();
         $data = $favorites->listFavoritesByCatalog($catalogDirectory, $page, $size, $searchQuery);
@@ -379,8 +379,10 @@ $router->mount('/favorites', function () use ($router) {
     $router->post('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
-            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0) {
+        if (
+            json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
+            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0
+        ) {
             handleErr(new \InvalidArgumentException("Missing or invalid 'reference_file_id' (must be a positive integer) in JSON body.", 400));
         }
         try {
@@ -398,8 +400,10 @@ $router->mount('/favorites', function () use ($router) {
     $router->delete('/', function () {
         header('Content-Type: application/json; charset=utf-8');
         $input = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
-            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0) {
+        if (
+            json_last_error() !== JSON_ERROR_NONE || is_null($input) ||
+            !isset($input['reference_file_id']) || !is_int($input['reference_file_id']) || $input['reference_file_id'] <= 0
+        ) {
             handleErr(new \InvalidArgumentException("Missing or invalid 'reference_file_id' (must be a positive integer) in JSON body.", 400));
         }
         try {
@@ -452,12 +456,15 @@ $router->get('/reference-files', function () {
         $size = checkGetParam('size', 20, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         // Get the directory filter parameter (named 'catalog' in the URL)
         $catalog = checkGetParam('catalog', null); // Default filter is fine for strings, default is null
+        // Get the optional search query parameter
+        $searchQuery = checkGetParam('search', null);
 
         // Instantiate the Files class
         $filesHandler = new Files();
 
         // Call the listing method, passing the catalog filter
-        $fileData = $filesHandler->listReferenceFilesPaginated($page, $size, $catalog); // Pass $catalog here
+        $fileData = $filesHandler->listReferenceFilesPaginated($page, $size, $catalog, $searchQuery); // Pass $catalog and $searchQuery here
+
 
         // Output the data as JSON
         echo json_encode(['status' => ['code' => 200, 'message' => 'ok'], "data" => $fileData]);
