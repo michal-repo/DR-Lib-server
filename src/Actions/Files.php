@@ -93,10 +93,11 @@ class Files extends BaseWithDB {
 
             // 2. Get the paginated results (with filter applied)
             // Added is_favorite flag and ORDER BY for consistent pagination results
+            $order = is_null($directoryForFilter) ? " ORDER BY rf.id DESC " : " ORDER BY rf.name ASC ";
             $selectSql = "SELECT rf.*, (fav.id IS NOT NULL) AS is_favorite
                           FROM reference_files rf
                           LEFT JOIN favorites fav ON rf.id = fav.reference_file_id AND fav.user_id = :current_user_id"
-                . $mainWhereSql . " ORDER BY rf.id DESC LIMIT :limit OFFSET :offset";
+                . $mainWhereSql . $order . " LIMIT :limit OFFSET :offset";
 
 
             $stmt = $this->db->dbh->prepare($selectSql);
